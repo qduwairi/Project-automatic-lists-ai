@@ -1,4 +1,4 @@
-package com.example.project
+package com.example.automatic_shopping_list
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
