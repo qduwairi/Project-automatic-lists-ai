@@ -33,7 +33,9 @@ android {
 }
 
 dependencies {
-
+    implementation("androidx.compose.foundation:foundation:1.5.0")
+    implementation("androidx.compose.material3:material3:1.1.1")
+    implementation("androidx.compose.ui:ui:1.5.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

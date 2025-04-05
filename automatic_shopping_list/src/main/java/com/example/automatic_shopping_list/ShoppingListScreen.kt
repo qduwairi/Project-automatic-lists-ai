@@ -1,3 +1,4 @@
+
 package com.example.automatic_shopping_list
 
 import androidx.compose.foundation.layout.*
