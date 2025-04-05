@@ -1,34 +1,46 @@
 package com.example.project
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.automatic_shopping_list.ShoppingItem
 import com.example.automatic_shopping_list.ShoppingListManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShoppingListScreen() {
-    // Create a shopping list manager instance (kept for data management)
+    // Create a shopping list manager instance
     val shoppingListManager = remember { ShoppingListManager() }
 
-    // State for the query input
-    var queryText by remember { mutableStateOf("") }
+    // State for the event name input
+    var eventName by remember { mutableStateOf("") }
 
     // State for showing loading indicator and storing response
     var isLoading by remember { mutableStateOf(false) }
-    var apiResponse by remember { mutableStateOf("") }
+
+    // State for shopping items
+    var items by remember { mutableStateOf(shoppingListManager.getItems()) }
 
     // Coroutine scope for API calls
     val coroutineScope = rememberCoroutineScope()
 
+    // Function to refresh items list
+    val refreshItems = {
+        items = shoppingListManager.getItems()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("DeepSeek AI Assistant") },
+                title = { Text("Event Shopping List Generator") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -42,7 +54,7 @@ fun ShoppingListScreen() {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // Query input bar with DeepSeek API connection
+            // Event input section
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -52,7 +64,7 @@ fun ShoppingListScreen() {
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Ask DeepSeek AI",
+                        text = "Generate Shopping List",
                         style = MaterialTheme.typography.titleMedium
                     )
 
@@ -63,10 +75,10 @@ fun ShoppingListScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
-                            value = queryText,
-                            onValueChange = { queryText = it },
-                            label = { Text("Enter query") },
-                            placeholder = { Text("What would you like to search for?") },
+                            value = eventName,
+                            onValueChange = { eventName = it },
+                            label = { Text("Event Name") },
+                            placeholder = { Text("e.g., Birthday Party, Camping Trip") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             enabled = !isLoading
@@ -76,23 +88,37 @@ fun ShoppingListScreen() {
 
                         Button(
                             onClick = {
-                                if (queryText.isNotEmpty()) {
+                                if (eventName.isNotEmpty()) {
                                     coroutineScope.launch {
                                         isLoading = true
                                         try {
-                                            // Call to DeepSeek API
-                                            apiResponse = sendQueryToDeepSeek(queryText)
+                                            // Clear existing items
+                                            shoppingListManager.clearList()
+
+                                            // Create prompt for DeepSeek
+                                            val prompt = "Generate a list of only the essential items needed for a ${eventName}. " +
+                                                    "Return ONLY a numbered list of items with no introduction or conclusion. " +
+                                                    "Keep the list concise with only necessary items."
+
+                                            // Get response from DeepSeek API
+                                            val response = sendQueryToDeepSeek(prompt)
+
+                                            // Parse the response into shopping items
+                                            parseAndAddItems(response, shoppingListManager)
+
+                                            // Refresh the UI
+                                            refreshItems()
                                         } catch (e: Exception) {
-                                            apiResponse = "Error: ${e.message}"
+                                            // Handle error
                                         } finally {
                                             isLoading = false
                                         }
                                     }
                                 }
                             },
-                            enabled = queryText.isNotEmpty() && !isLoading
+                            enabled = eventName.isNotEmpty() && !isLoading
                         ) {
-                            Text("Search")
+                            Text("Generate List")
                         }
                     }
 
@@ -103,28 +129,86 @@ fun ShoppingListScreen() {
                 }
             }
 
-            // Display API response
-            if (apiResponse.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Card(
-                    modifier = Modifier.fillMaxWidth()
+            // Shopping list display
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Result",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                    Text(
+                        text = "Shopping List Items",
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(apiResponse)
+                    if (items.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Enter an event name and click 'Generate List'")
+                        }
+                    } else {
+                        LazyColumn {
+                            items(items) { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = item.isChecked,
+                                        onCheckedChange = { checked ->
+                                            // Update item checked status
+                                            val updatedItem = item.copy(isChecked = checked)
+                                            shoppingListManager.removeItem(item.id)
+                                            shoppingListManager.addItem(updatedItem)
+                                            refreshItems()
+                                        }
+                                    )
+
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Divider()
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Parse the API response and add items to the shopping list manager
+ */
+private fun parseAndAddItems(response: String, shoppingListManager: ShoppingListManager) {
+    // Split the response by new lines and process each line
+    response.split("\n").forEach { line ->
+        // Clean up and extract the item name
+        val trimmedLine = line.trim()
+        if (trimmedLine.isNotEmpty()) {
+            // Remove numbering (e.g., "1. ", "1) ", etc.)
+            val itemName = trimmedLine.replace(Regex("^\\d+[.)]\\s*"), "").trim()
+            if (itemName.isNotEmpty()) {
+                val newItem = ShoppingItem(
+                    id = System.currentTimeMillis() + itemName.hashCode(),
+                    name = itemName
+                )
+                shoppingListManager.addItem(newItem)
             }
         }
     }

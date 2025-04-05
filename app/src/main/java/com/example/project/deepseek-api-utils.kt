@@ -28,10 +28,10 @@ suspend fun sendQueryToDeepSeek(query: String): String {
 
             // Create messages array according to DeepSeek API
             val messagesArray = JSONArray().apply {
-                // Add system message
+                // Add system message with specific instructions
                 put(JSONObject().apply {
                     put("role", "system")
-                    put("content", "You are a helpful assistant.")
+                    put("content", "You are a shopping list generator. Provide only essential items for events without any introductions, explanations, or conclusions. Return only a numbered list of necessary items.")
                 })
 
                 // Add user message (the query)
@@ -47,9 +47,8 @@ suspend fun sendQueryToDeepSeek(query: String): String {
                 // Alternatively use "deepseek-reasoner" for DeepSeek-R1
                 put("messages", messagesArray)
                 put("stream", false)
-                // Add other optional parameters as needed
-                // put("temperature", 0.7)
-                // put("max_tokens", 4096)
+                put("temperature", 0.3) // Lower temperature for more focused response
+                put("max_tokens", 2048) // Limit token count since we only need a concise list
             }.toString()
 
             // Send the request
@@ -74,7 +73,10 @@ suspend fun sendQueryToDeepSeek(query: String): String {
                     "No response content available"
                 }
             } else {
-                "Error: HTTP ${connection.responseCode} - ${connection.responseMessage}"
+                // For error responses, try to read error message from response body
+                val errorStream = connection.errorStream
+                val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                "Error: HTTP ${connection.responseCode} - ${connection.responseMessage}\nDetails: $errorResponse"
             }
         } catch (e: Exception) {
             "Error connecting to DeepSeek API: ${e.message}"
