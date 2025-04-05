@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Project"
 include(":app")
- 
+include(":automatic_shopping_list")
